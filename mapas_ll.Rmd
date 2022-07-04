@@ -1,0 +1,419 @@
+---
+title: "Mapas de resultados"
+author: "Adriana Avalos Vargas"
+date: "27/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+## Visualización de las estimaciones del PIB municipalpor año
+
+En los siguientes mapas se  muestra el pib municipal estimado a través de una regresión lineal en la que se utilizó las variables: 
+
+
+* PIB: Producto interno bruto estatal de los años 1994, 1999, 2004, 2009 y 2014 disponibles en el sitio web del INEGI [https://www.inegi.org.mx/sistemas/bie/].
+
+* PBT: ES la variable que se utiliza para denotar a la Producción bruta total, que se define como el valor de todos los bienes y servicios producidos o comercializados por la unidad económica como resultado del ejercicio de sus actividades, comprendiendo el valor de los productos elaborados; el margen bruto de comercialización; las obras ejecutadas; los ingresos por la prestación de servicios, así como el alquiler de maquinaria y equipo, y otros bienes muebles e inmuebles; el valor de los activos fijos producidos para uso propio, entre otros. Incluye: la variación de existencias de productos en proceso. Los bienes y servicios se valoran a precios productor.
+
+* VACB: Se refiere al valor agregado censal bruto y se define como el valor de la producción que se añade durante el proceso de trabajo por la actividad creadora y de transformación del personal ocupado, el capital y la organización (factores de la producción), ejercida sobre los materiales que se consumen en la realización de la actividad económica. Aritméticamente, el Valor Agregado Censal Bruto (VACB) resulta de restar a la Producción Bruta Total el Consumo Intermedio. Se le llama bruto porque no se le ha deducido el consumo de capital fijo. Se dispone de información de ésta variable en los censos económicos de 1994, 1999, 2004, 2009, 2014 y 2019.
+
+* FBC: Es el acrónimo de la formación bruta de capital fijo, que es el valor de los activos fijos comprados por la unidad económica (hayan sido nacionales o importados, nuevos o usados), menos el valor de las ventas de activos fijos realizadas. Incluye: como parte de las compras de activos fijos, el valor de las renovaciones, mejoras y reformas mayores realizadas a los activos fijos que prolongaron su vida útil en más de un año o aumentaron su productividad, y los activos fijos producidos por la unidad económica para uso propio. Se dispone de información de ésta variable en los censos económicos de 1994, 1999, 2004, 2009, 2014 y 2019.
+
+* INV: Es la inversión total y se define como el incremento en activos, insumos y productos que experimentaron las unidades económicas durante el año de referencia. Se obtiene sumando a la Formación Bruta de Capital Fijo la variación de Existencias. Se dispone de información de ésta variable en los censos económicos de 2004, 2009, 2014 y 2019
+
+* POT: Es el personal ocupado total y comprende a todas las personas que trabajaron durante el periodo de referencia dependiendo contractualmente o no de la unidad económica, sujetas a su dirección y control.Se dispone de información de ésta variable en los censos económicos de 1994, 1999, 2004, 2009, 2014 y 2019.
+
+Los datos se tranformaron de tal forma que todas las variables monetarias tuvieran el mismo valor, es decir, se ajustaron a pesos del 2013. Despúes, se convirtieron en variables adimensionales, pues el rango de la variable POT es varias veces menor al rango de las variables monetarias y esto podría sesgar la regresión. Existen varias formas de lograrlo, como por ejemplo convertirlo a una proporción dividiendo entre el máximo o utilizando la transformación max-min. En este caso se propone utilizar la estandarización por proporciones,  es decir, cada variable independiente se reescribirá como:
+
+$$w_{i} = \frac{x_{i}}{max(x_{i})},$$
+
+donde $w_{i}$ representa la i-ésima variable estandarizada, $x_{i}$ la i-ésima variable sin estandarizar, y max es la función máximo.
+
+La regresión lineal se realiza sobre los logaritmos naturales de cada una de las variables, es decir:
+
+$$ln(PIB) = ln(A)+\sum_{i=1}^{3}\alpha_{i}ln(x_{i})+\epsilon,$$
+
+si se definen las variables considerando $ln(PIB)=pib$, $ln(A)=a$, $ln(x_{i})=z_{i}$, donde las $z_{i}$ representan al $ln(PBT)=pbt$ y al $ln(POT)=pot$ la ecuación anterior se rescribe como:
+
+$$pib = a+\sum_{i=1}^{3}\alpha_{i}z_{i}+\epsilon.$$
+
+A continuación se muestra de forma gráfica los resultados de la regresión para cada años disponible a escala municipal. 
+
+
+### Pib municipal por regresión lineal de mínimos cuadrados 1994 en millones de pesos del 2013
+
+
+```{r regresion rl 1994}
+################
+##Mapa regresión lineal 1994
+
+##Librerías
+library(rgdal)
+library(RColorBrewer)
+library(classInt)
+library(leaflet)
+
+
+
+#directorios
+#directorios
+dir_pib <- "C:/Users/avalo/Downloads/PIB_MUNI/PIB_MUNI/codigos_finales/resultados"
+dir_res <- "C:/Users/avalo/Downloads/PIB_MUNI/PIB_MUNI/codigos_finales/resultados"
+
+
+##Base de datos con el PIB
+#Fijamos el directorio
+setwd(dir_pib)
+
+#Llamamos las bases de datos
+pib_mun <- read.csv("pib_mun.csv", header = T, stringsAsFactors = F)
+
+
+#Llamamos base del mapaa
+#Directorio mapas
+dir_map <- "C:/Users/avalo/Downloads/PIB_MUNI/PIB_MUNI/codigos_finales/municipios_shp"
+setwd(dir_map)
+poligonos <- readOGR("mun2019gw.shp")
+
+
+#Creamos variables id_edo y id_mun
+poligonitos <- poligonos@data
+poligonitos$order <- 1:length(poligonitos$COV_ID)
+
+poligonitos$id_edo <- as.numeric(as.character(poligonitos$CVE_ENT))
+poligonitos$id_mun <- as.numeric(as.character(poligonitos$CVE_MUN))
+
+
+#Unamos por año y guardamos en una lista
+#Unamos por año y guardamos en una lista
+pibs = subset(pib_mun, pib_mun$anio == 1994)
+pibs$pib_mun <- pibs$PIB_mun_rl
+#Unimos 
+aux <- merge(poligonitos, pibs, by=c("id_edo", "id_mun"), all=TRUE)
+aux <- aux[order(aux$order),]
+aux <- aux[,c(14,21)]
+
+
+var_graf <- as.data.frame(aux$pib_mun)
+colnames(var_graf) <- "Var_graf"
+row.names(var_graf) <- row.names(poligonos)
+poligonos.data <- SpatialPolygonsDataFrame(poligonos, var_graf)
+
+
+#Gráficas
+
+# Create a color palette for the map:
+cuantiles <- round(quantile(aux$pib_mun, probs = seq(0, 1, 0.1), na.rm = TRUE),2)
+mybins <- c(0,cuantiles)
+mypalette <- colorBin( palette="Set3", domain=poligonos.data@data$Var_graf, na.color="transparent", bins=mybins)
+
+# Prepare the text for tooltips:
+mytext <- paste(
+  "Estado: ", poligonos@data$NOM_ENT, "<br/>",
+  "Municipio: ", poligonos@data$NOM_MUN ,"<br/>", 
+  "Pib: ", round(poligonos.data@data$Var_graf, 2), 
+  sep="") %>%
+  lapply(htmltools::HTML)
+
+# Final Map
+leaflet(poligonos.data) %>% 
+  addTiles()  %>% 
+  setView( lat=19.4978, lng=-99.1269 , zoom=5) %>%
+  addPolygons( 
+    fillColor = ~mypalette(Var_graf), 
+    stroke=TRUE, 
+    fillOpacity = 0.5, 
+    color="white", 
+    weight=0.3,
+    label = mytext,
+    labelOptions = labelOptions( 
+      style = list("font-weight" = "normal", padding = "3px 8px"), 
+      textsize = "9px", 
+      direction = "auto"
+    )
+  ) %>%
+  addLegend( pal=mypalette, values=~Var_graf, opacity=0.9, title = "Pib_1994 Millones", position = "bottomleft" )
+
+rm(list=c("aux", "mytext", "pibs","poligonitos", "poligonos.data","var_graf", "cuantiles", "dir_map", "dir_pib",
+"dir_res", "mybins","mypalette" ))
+
+```
+
+### Pib municipal por regresión lineal de mínimos cuadrados 1999 en millones de pesos del 2013
+
+
+```{r regresion rl 1999}
+#Creamos variables id_edo y id_mun
+poligonitos <- poligonos@data
+poligonitos$order <- 1:length(poligonitos$COV_ID)
+
+poligonitos$id_edo <- as.integer(as.character(poligonitos$CVE_ENT))
+poligonitos$id_mun <- as.integer(as.character(poligonitos$CVE_MUN))
+
+
+#Unamos por año y guardamos en una lista
+#Unamos por año y guardamos en una lista
+pibs = subset(pib_mun, pib_mun$anio == 1999)
+pibs$id_mun <- as.integer(pibs$id_mun)
+pibs$pib_mun <- pibs$PIB_mun_rl
+
+#Unimos 
+aux <- merge(poligonitos, pibs, by=c("id_edo", "id_mun"),all=TRUE)
+aux <- aux[order(aux$order),]
+aux <- aux[,c(14,21)]
+
+
+var_graf <- as.data.frame(aux$pib_mun)
+colnames(var_graf) <- "Var_graf"
+row.names(var_graf) <- row.names(poligonos)
+poligonos.data <- SpatialPolygonsDataFrame(poligonos, var_graf)
+
+
+#Gráficas
+
+# Create a color palette for the map:
+cuantiles <- round(quantile(aux$pib_mun, probs = seq(0, 1, 0.1), na.rm = TRUE),2)
+mybins <- c(0,cuantiles)
+mypalette <- colorBin( palette="Set3", domain=poligonos.data@data$Var_graf, na.color="transparent", bins=mybins)
+
+# Prepare the text for tooltips:
+mytext <- paste(
+  "Estado: ", poligonos@data$NOM_ENT, "<br/>",
+  "Municipio: ", poligonos@data$NOM_MUN ,"<br/>", 
+  "Pib: ", round(poligonos.data@data$Var_graf, 2), 
+  sep="") %>%
+  lapply(htmltools::HTML)
+
+# Final Map
+leaflet(poligonos.data) %>% 
+  addTiles()  %>% 
+  setView( lat=19.4978, lng=-99.1269 , zoom=5) %>%
+  addPolygons( 
+    fillColor = ~mypalette(Var_graf), 
+    stroke=TRUE, 
+    fillOpacity = 0.5, 
+    color="white", 
+    weight=0.3,
+    label = mytext,
+    labelOptions = labelOptions( 
+      style = list("font-weight" = "normal", padding = "3px 8px"), 
+      textsize = "9px", 
+      direction = "auto"
+    )
+  ) %>%
+  addLegend( pal=mypalette, values=~Var_graf, opacity=0.9, title = "Pib_1999 Millones", position = "bottomleft" )
+
+rm(list=c("aux", "mytext", "pibs","poligonitos", "poligonos.data","var_graf", "cuantiles",
+          "mybins","mypalette" ))
+
+```
+
+
+### Pib municipal por regresión lineal de mínimos cuadrados 2004 en millones de pesos del 2013
+
+```{r rl2004}
+#Creamos variables id_edo y id_mun
+poligonitos <- poligonos@data
+poligonitos$order <- 1:length(poligonitos$COV_ID)
+
+poligonitos$id_edo <- as.integer(as.character(poligonitos$CVE_ENT))
+poligonitos$id_mun <- as.integer(as.character(poligonitos$CVE_MUN))
+
+
+#Unamos por año y guardamos en una lista
+#Unamos por año y guardamos en una lista
+pibs = subset(pib_mun, pib_mun$anio == 2004)
+pibs$id_mun <- as.integer(pibs$id_mun)
+pibs$pib_mun <- pibs$PIB_mun_rl
+
+#Unimos 
+aux <- merge(poligonitos, pibs, by=c("id_edo", "id_mun"),all=TRUE)
+aux <- aux[order(aux$order),]
+aux <- aux[,c(14,21)]
+
+
+var_graf <- as.data.frame(aux$pib_mun)
+colnames(var_graf) <- "Var_graf"
+row.names(var_graf) <- row.names(poligonos)
+poligonos.data <- SpatialPolygonsDataFrame(poligonos, var_graf)
+
+
+#Gráficas
+
+# Create a color palette for the map:
+cuantiles <- round(quantile(aux$pib_mun, probs = seq(0, 1, 0.1), na.rm = TRUE),2)
+mybins <- c(0,cuantiles)
+mypalette <- colorBin( palette="Set3", domain=poligonos.data@data$Var_graf, na.color="transparent", bins=mybins)
+
+# Prepare the text for tooltips:
+mytext <- paste(
+  "Estado: ", poligonos@data$NOM_ENT, "<br/>",
+  "Municipio: ", poligonos@data$NOM_MUN ,"<br/>", 
+  "Pib: ", round(poligonos.data@data$Var_graf, 2), 
+  sep="") %>%
+  lapply(htmltools::HTML)
+
+# Final Map
+leaflet(poligonos.data) %>% 
+  addTiles()  %>% 
+  setView( lat=19.4978, lng=-99.1269 , zoom=5) %>%
+  addPolygons( 
+    fillColor = ~mypalette(Var_graf), 
+    stroke=TRUE, 
+    fillOpacity = 0.5, 
+    color="white", 
+    weight=0.3,
+    label = mytext,
+    labelOptions = labelOptions( 
+      style = list("font-weight" = "normal", padding = "3px 8px"), 
+      textsize = "9px", 
+      direction = "auto"
+    )
+  ) %>%
+  addLegend( pal=mypalette, values=~Var_graf, opacity=0.9, title = "Pib_2004 Millones", position = "bottomleft" )
+
+rm(list=c("aux", "mytext", "pibs","poligonitos", "poligonos.data","var_graf", "cuantiles",
+          "mybins","mypalette" ))
+
+```
+
+### Pib municipal por regresión lineal de mínimos cuadrados 2009 en millones de pesos del 2013
+
+```{r rl 2009}
+#Creamos variables id_edo y id_mun
+poligonitos <- poligonos@data
+poligonitos$order <- 1:length(poligonitos$COV_ID)
+
+poligonitos$id_edo <- as.integer(as.character(poligonitos$CVE_ENT))
+poligonitos$id_mun <- as.integer(as.character(poligonitos$CVE_MUN))
+
+
+#Unamos por año y guardamos en una lista
+#Unamos por año y guardamos en una lista
+pibs = subset(pib_mun, pib_mun$anio == 2009)
+pibs$id_mun <- as.integer(pibs$id_mun)
+pibs$pib_mun <- pibs$PIB_mun_rl
+
+#Unimos 
+aux <- merge(poligonitos, pibs, by=c("id_edo", "id_mun"),all=TRUE)
+aux <- aux[order(aux$order),]
+aux <- aux[,c(14,21)]
+
+
+var_graf <- as.data.frame(aux$pib_mun)
+colnames(var_graf) <- "Var_graf"
+row.names(var_graf) <- row.names(poligonos)
+poligonos.data <- SpatialPolygonsDataFrame(poligonos, var_graf)
+
+
+#Gráficas
+
+# Create a color palette for the map:
+cuantiles <- round(quantile(aux$pib_mun, probs = seq(0, 1, 0.1), na.rm = TRUE),2)
+mybins <- c(0,cuantiles)
+mypalette <- colorBin( palette="Set3", domain=poligonos.data@data$Var_graf, na.color="transparent", bins=mybins)
+
+# Prepare the text for tooltips:
+mytext <- paste(
+  "Estado: ", poligonos@data$NOM_ENT, "<br/>",
+  "Municipio: ", poligonos@data$NOM_MUN ,"<br/>", 
+  "Pib: ", round(poligonos.data@data$Var_graf, 2), 
+  sep="") %>%
+  lapply(htmltools::HTML)
+
+# Final Map
+leaflet(poligonos.data) %>% 
+  addTiles()  %>% 
+  setView( lat=19.4978, lng=-99.1269 , zoom=5) %>%
+  addPolygons( 
+    fillColor = ~mypalette(Var_graf), 
+    stroke=TRUE, 
+    fillOpacity = 0.5, 
+    color="white", 
+    weight=0.3,
+    label = mytext,
+    labelOptions = labelOptions( 
+      style = list("font-weight" = "normal", padding = "3px 8px"), 
+      textsize = "9px", 
+      direction = "auto"
+    )
+  ) %>%
+  addLegend( pal=mypalette, values=~Var_graf, opacity=0.9, title = "Pib_2009 Millones", position = "bottomleft" )
+
+rm(list=c("aux", "mytext", "pibs","poligonitos", "poligonos.data","var_graf", "cuantiles",
+          "mybins","mypalette" ))
+```
+
+
+### Pib municipal por regresión lineal de mínimos cuadrados 2014 en millones de pesos del 2013
+
+```{r rl 2014}
+#Creamos variables id_edo y id_mun
+poligonitos <- poligonos@data
+poligonitos$order <- 1:length(poligonitos$COV_ID)
+
+poligonitos$id_edo <- as.integer(as.character(poligonitos$CVE_ENT))
+poligonitos$id_mun <- as.integer(as.character(poligonitos$CVE_MUN))
+
+
+#Unamos por año y guardamos en una lista
+#Unamos por año y guardamos en una lista
+pibs = subset(pib_mun, pib_mun$anio == 2014)
+pibs$id_mun <- as.integer(pibs$id_mun)
+pibs$pib_mun <- pibs$PIB_mun_rl
+
+#Unimos 
+aux <- merge(poligonitos, pibs, by=c("id_edo", "id_mun"),all=TRUE)
+aux <- aux[order(aux$order),]
+aux <- aux[,c(14,21)]
+
+
+var_graf <- as.data.frame(aux$pib_mun)
+colnames(var_graf) <- "Var_graf"
+row.names(var_graf) <- row.names(poligonos)
+poligonos.data <- SpatialPolygonsDataFrame(poligonos, var_graf)
+
+
+#Gráficas
+
+# Create a color palette for the map:
+cuantiles <- round(quantile(aux$pib_mun, probs = seq(0, 1, 0.1), na.rm = TRUE),2)
+mybins <- c(0,cuantiles)
+mypalette <- colorBin( palette="Set3", domain=poligonos.data@data$Var_graf, na.color="transparent", bins=mybins)
+
+# Prepare the text for tooltips:
+mytext <- paste(
+  "Estado: ", poligonos@data$NOM_ENT, "<br/>",
+  "Municipio: ", poligonos@data$NOM_MUN ,"<br/>", 
+  "Pib: ", round(poligonos.data@data$Var_graf, 2), 
+  sep="") %>%
+  lapply(htmltools::HTML)
+
+# Final Map
+leaflet(poligonos.data) %>% 
+  addTiles()  %>% 
+  setView( lat=19.4978, lng=-99.1269 , zoom=5) %>%
+  addPolygons( 
+    fillColor = ~mypalette(Var_graf), 
+    stroke=TRUE, 
+    fillOpacity = 0.5, 
+    color="white", 
+    weight=0.3,
+    label = mytext,
+    labelOptions = labelOptions( 
+      style = list("font-weight" = "normal", padding = "3px 8px"), 
+      textsize = "9px", 
+      direction = "auto"
+    )
+  ) %>%
+  addLegend( pal=mypalette, values=~Var_graf, opacity=0.9, title = "Pib_2014 Millones", position = "bottomleft" )
+
+rm(list=c("aux", "mytext", "pibs","poligonitos", "poligonos.data","var_graf", "cuantiles",
+          "mybins","mypalette" ))
+
+
+```
+
